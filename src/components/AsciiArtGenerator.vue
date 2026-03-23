@@ -144,12 +144,21 @@
       </div>
       <div
         ref="previewContainer"
-        class="bg-white p-6 rounded-lg border min-h-40 font-mono text-xs overflow-x-auto shadow-inner max-w-full"
-        :class="{ 'border-2 border-blue-200': asciiArt }"
+        class="bg-white rounded-lg border min-h-40 overflow-x-auto shadow-inner max-w-full"
+        :class="{
+          'border-2 border-blue-200': asciiArt,
+          'p-4': isVectorPreview,
+          'p-6 font-mono text-xs': !isVectorPreview,
+        }"
       >
+        <div
+          v-if="isVectorPreview"
+          class="min-w-max"
+          v-html="vectorPreviewSvg"
+        ></div>
         <pre
-          v-if="asciiArt"
-          class="whitespace-pre text-gray-800 leading-tight text-xs overflow-x-auto"
+          v-else-if="asciiArt"
+          class="ascii-preview whitespace-pre text-gray-800 text-xs overflow-x-auto"
           >{{ asciiArt }}</pre
         >
         <div v-else class="text-gray-400 text-center py-16 text-sm">输入文字以生成 ASCII 艺术</div>
@@ -159,9 +168,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import figlet from 'figlet'
 import { loadFont as loadFontUtil, getAvailableFonts, getLoadedFonts } from '../utils/fontLoader'
+import { canRenderAsciiAsVector, renderAsciiAsVectorSvg } from '../utils/asciiVectorRenderer'
 
 // Reactive data
 const inputText = ref('Test')
@@ -171,6 +181,27 @@ const asciiArt = ref('')
 const previewContainer = ref<HTMLElement>()
 const isLoadingFonts = ref(true)
 const loadedFonts = ref(getLoadedFonts())
+const vectorRenderFontFamily = 'Courier New, Monaco, Menlo, monospace'
+const vectorRenderFontSize = 12
+const vectorRenderLineHeight = 13.2
+const isVectorPreview = computed(() => canRenderAsciiAsVector(asciiArt.value))
+const vectorPreviewSvg = computed(() => {
+  if (!isVectorPreview.value) {
+    return ''
+  }
+
+  return renderAsciiAsVectorSvg(asciiArt.value, {
+    backgroundColor: '#ffffff',
+    fillColor: '#111111',
+    outlineColor: '#5f5f5f',
+    fontFamily: vectorRenderFontFamily,
+    fontSize: vectorRenderFontSize,
+    lineHeight: vectorRenderLineHeight,
+    padding: 0,
+    shadowOffsetX: 1.25,
+    shadowOffsetY: 1.5,
+  }).svg
+})
 
 // Character width options
 const characterWidthOptions = ref([
@@ -272,8 +303,30 @@ const handleKeyPress = (event: KeyboardEvent) => {
   }
 }
 
-// Export as SVG with enhanced text-to-shape conversion for perfect consistency
-const exportAsSVG = () => {
+const buildExportFilename = () => {
+  const widthLabel =
+    characterWidthOptions.value
+      .find((opt) => opt.value === selectedCharacterWidth.value)
+      ?.label.toLowerCase()
+      .replace(/\s+/g, '-') || 'default'
+
+  return `ascii-art-${inputText.value.replace(/\s+/g, '-').toLowerCase()}-${widthLabel}.svg`
+}
+
+const downloadSvg = (svgContent: string) => {
+  const blob = new Blob([svgContent], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = buildExportFilename()
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+// Export text preview by rasterizing the current monospace rendering
+const exportTextAsSVG = () => {
   if (!asciiArt.value) return
 
   const lines = asciiArt.value.split('\n')
@@ -380,21 +433,37 @@ const exportAsSVG = () => {
 
   svgContent += '  </g>\n</svg>'
 
-  // Create and download file
-  const blob = new Blob([svgContent], { type: 'image/svg+xml' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  const widthLabel =
-    characterWidthOptions.value
-      .find((opt) => opt.value === selectedCharacterWidth.value)
-      ?.label.toLowerCase()
-      .replace(/\s+/g, '-') || 'default'
-  link.download = `ascii-art-${inputText.value.replace(/\s+/g, '-').toLowerCase()}-${widthLabel}.svg`
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  downloadSvg(svgContent)
+}
+
+const exportVectorAsSVG = () => {
+  if (!asciiArt.value) return
+
+  const { svg } = renderAsciiAsVectorSvg(asciiArt.value, {
+    backgroundColor: '#ffffff',
+    fillColor: '#111111',
+    outlineColor: '#5f5f5f',
+    fontFamily: vectorRenderFontFamily,
+    fontSize: vectorRenderFontSize,
+    lineHeight: vectorRenderLineHeight,
+    padding: 16,
+    shadowOffsetX: 1.25,
+    shadowOffsetY: 1.5,
+  })
+
+  downloadSvg(svg)
+}
+
+// Export as SVG using the same rendering mode as the preview
+const exportAsSVG = () => {
+  if (!asciiArt.value) return
+
+  if (isVectorPreview.value) {
+    exportVectorAsSVG()
+    return
+  }
+
+  exportTextAsSVG()
 }
 
 // Helper function to find the largest rectangle of black pixels
