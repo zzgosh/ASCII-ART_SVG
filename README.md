@@ -1,155 +1,166 @@
 # ASCII Art SVG Generator
 
-A modern web application for creating ASCII art from text and exporting it as high-quality SVG files with advanced pixel-to-shape conversion.
-
-[中文版本](./README_zh.md) | [English Version](./README.md)
+A Vue 3 app for turning text into ASCII art and exporting the result as SVG. It supports 295 FIGlet fonts, dynamic font loading, width controls, and two export/rendering paths: a generic text pipeline for most fonts and a dedicated vector pipeline for ANSI Shadow-style output.
 
 ## Features
 
-- 🎨 **Real-time ASCII Art Generation** - Type text and see ASCII art instantly
-- 🔤 **Massive Font Library** - 295 different ASCII art fonts with dynamic loading
-- ⚡ **Quick Font Navigation** - Use arrow keys (↑/↓) or buttons to quickly switch fonts
-- 🎛️ **Character Width Control** - Fine-tune spacing with 5 different width options
-- 📥 **Advanced SVG Export** - Export with pixel-to-shape conversion for optimal quality
-- 🚀 **Dynamic Font Loading** - Fonts load on-demand for better performance
-- 📱 **Responsive Design** - Works perfectly on desktop and mobile devices
-- 🎯 **User-Friendly Interface** - Clean, modern design with font loading indicators
-- 🔄 **Font Status Tracking** - Visual checkmarks show which fonts are loaded
+- Real-time ASCII art generation from text input
+- 295 FIGlet font styles with on-demand loading
+- Quick font switching with arrow keys and Previous/Next buttons
+- Five character width modes for spacing control
+- Dedicated ANSI Shadow vector rendering for a more unified block look
+- Shape-only SVG export for ANSI Shadow-like output, avoiding downstream font substitution in tools such as Figma
+- Generic SVG export path for all other FIGlet fonts
+- Responsive preview area with font load status indicators
+
+## Rendering Architecture
+
+All font styles share the same generation step. The rendering/export layer branches only after FIGlet produces the ASCII text.
+
+```mermaid
+flowchart TD
+  A["User Input<br/>text + font + width"] --> B["figlet.js<br/>Generate ASCII lines"]
+  B --> C{"ANSI Shadow-style<br/>characters only?"}
+  C -->|Yes| D["asciiVectorRenderer.ts<br/>Split face and shadow layers"]
+  D --> E["Rasterize each layer<br/>at 4x pixel ratio"]
+  E --> F["Merge binary pixels<br/>into SVG rects"]
+  F --> I["Preview and exported SVG<br/>as shape-only output"]
+  C -->|No| G["Monospace text preview<br/>in AsciiArtGenerator.vue"]
+  G --> H["Canvas sampling +<br/>rectangle merge export"]
+  H --> J["Exported SVG<br/>from generic text path"]
+```
+
+## ANSI Shadow Vector Mode
+
+The dedicated vector mode is content-based rather than font-name-based. It activates only when the generated ASCII output is composed of:
+
+- `█` for the solid face
+- `╔═╗║╚╝` for the outline/shadow layer
+
+When that condition is met, the app:
+
+1. Splits the ASCII output into face and shadow layers.
+2. Rasterizes both layers separately into binary maps.
+3. Bridges tiny gaps in the face layer to reduce visible seams.
+4. Merges occupied pixels into SVG `<rect>` shapes.
+5. Combines both layers into a font-independent SVG for preview and export.
+
+This keeps the front glyph mass intact, preserves the ANSI Shadow-style shadow geometry better than plain text rendering, and avoids missing-font warnings in design tools.
+
+## Export Modes
+
+- **Generic FIGlet fonts**: preview as raw monospace text and export through canvas sampling plus rectangle merging.
+- **ANSI Shadow-like output**: preview and export through `src/utils/asciiVectorRenderer.ts`, producing layered shape-based SVG.
+
+## Directory Structure
+
+```text
+ascii-art-svg/
+├── AGENTS.md
+├── CLAUDE.md
+├── README.md
+├── public/
+│   └── favicon.ico
+├── src/
+│   ├── assets/
+│   │   ├── base.css
+│   │   ├── logo.svg
+│   │   └── main.css
+│   ├── components/
+│   │   ├── AsciiArtGenerator.vue
+│   │   ├── HelloWorld.vue
+│   │   ├── TheWelcome.vue
+│   │   ├── WelcomeItem.vue
+│   │   └── icons/
+│   │       ├── IconCommunity.vue
+│   │       ├── IconDocumentation.vue
+│   │       ├── IconEcosystem.vue
+│   │       ├── IconSupport.vue
+│   │       └── IconTooling.vue
+│   ├── router/
+│   │   └── index.ts
+│   ├── stores/
+│   │   └── counter.ts
+│   ├── types/
+│   │   └── figlet-fonts.d.ts
+│   ├── utils/
+│   │   ├── asciiVectorRenderer.ts
+│   │   └── fontLoader.ts
+│   ├── views/
+│   │   ├── AboutView.vue
+│   │   └── HomeView.vue
+│   ├── App.vue
+│   └── main.ts
+├── env.d.ts
+├── eslint.config.ts
+├── index.html
+├── package-lock.json
+├── package.json
+├── tailwind.config.js
+├── tsconfig.app.json
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+```
 
 ## Technologies Used
 
-- **Vue 3** - Progressive JavaScript framework with Composition API
-- **Vite** - Fast build tool and development server with dynamic imports
-- **TailwindCSS** - Utility-first CSS framework for styling
-- **TypeScript** - Type-safe JavaScript development
-- **figlet.js** - ASCII art text generator library with dynamic font loading
-- **HTML5 Canvas** - High-resolution rendering for precise SVG conversion
+- **Vue 3** with the Composition API
+- **Vite** for development and build tooling
+- **TypeScript** for typed application code
+- **Tailwind CSS** for styling
+- **figlet.js** for ASCII art generation
+- **HTML5 Canvas** as an intermediate rasterization step for SVG shape extraction
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 18+
+- npm
 
 ### Installation
-
-1. Clone the repository:
 
 ```sh
 git clone https://github.com/jeejeeguan/ASCII-ART_SVG.git
 cd ASCII-ART_SVG/ascii-art-svg
-```
-
-2. Install dependencies:
-
-```sh
 npm install
 ```
 
-3. Start the development server:
+### Run the App
 
 ```sh
 npm run dev
 ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+Then open `http://localhost:5173`.
 
 ## Usage
 
-1. **Enter Text**: Type your desired text in the input field
-2. **Choose Font**: Select from 295 available fonts in the dropdown
-3. **Control Width**: Adjust character spacing with width options (Full, Fitted, Smushing, etc.)
-4. **Quick Navigation**: Use ↑/↓ arrow keys to quickly switch between fonts
-5. **Export**: Click "Export as SVG" to download your ASCII art as an optimized SVG file
+1. Enter the text you want to transform.
+2. Pick a FIGlet font from the dropdown.
+3. Adjust the character width mode if needed.
+4. Use `↑` / `↓` to move through fonts quickly.
+5. Export the current result as SVG.
 
 ## Character Width Options
 
-- **Full**: Maximum character spacing
-- **Fitted**: Minimal character spacing
-- **Controlled Smushing**: Controlled character overlap with specific rules
-- **Universal Smushing**: Universal character overlap rules
-- **Default**: Standard figlet spacing
-
-## Keyboard Shortcuts
-
-- `↑` (Up Arrow): Switch to previous font
-- `↓` (Down Arrow): Switch to next font
-
-## Font Library
-
-The application includes **295 ASCII art fonts** with dynamic loading, including:
-
-- **Classic Fonts**: Standard, Big, Block, Bubble, Digital, Doom
-- **Artistic Fonts**: Ghost, Graffiti, Star Wars, Rammstein, Hollywood
-- **Technical Fonts**: Binary, Hex, Morse, Computer, Electronic
-- **Decorative Fonts**: Flower Power, Heart Left/Right, Hieroglyphs
-- **3D Fonts**: 3-D, 3D Diagonal, Banner3-D, Isometric series
-- **Script Fonts**: Cursive, Calvin S, Script, Caligraphy
-- **And 270+ more fonts!**
-
-Fonts are loaded dynamically when selected, optimizing initial load time and memory usage.
+- **Full**: maximum spacing
+- **Fitted**: tighter spacing
+- **Controlled Smushing**: rule-based overlap
+- **Universal Smushing**: more aggressive overlap
+- **Default**: standard FIGlet layout
 
 ## Development Commands
 
-### Compile and Hot-Reload for Development
-
 ```sh
 npm run dev
-```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
 npm run build
-```
-
-### Type-Check Only
-
-```sh
 npm run type-check
-```
-
-### Lint with ESLint
-
-```sh
 npm run lint
-```
-
-### Format with Prettier
-
-```sh
 npm run format
-```
-
-### Preview Production Build
-
-```sh
 npm run preview
 ```
-
-## Advanced Features
-
-### Dynamic Font Loading
-
-- Fonts are loaded on-demand using Vite's dynamic imports
-- Initial page load is optimized by loading only essential fonts
-- Font loading status is tracked and displayed in the UI
-- Supports all 295 figlet fonts with proper error handling
-
-### SVG Export Technology
-
-- **High-Resolution Canvas Rendering**: Uses 2x pixel ratio for accurate measurement
-- **Pixel-to-Shape Conversion**: Converts rendered text to optimized SVG rectangles
-- **Rectangle Merging Algorithm**: Merges adjacent pixels for optimal file size
-- **Anti-aliasing Handling**: Proper threshold detection for smooth edges
-- **Automatic Sizing**: SVG dimensions calculated from actual content
-
-### Performance Optimizations
-
-- Lazy loading of font files
-- Reactive font status tracking
-- Efficient SVG generation with minimal file size
-- Responsive UI updates without blocking
 
 ## License
 

@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to coding agents when working with code in this repository.
 
 ## Project Overview
 
@@ -61,14 +61,19 @@ Located in `src/utils/fontLoader.ts`:
 - **Load Status Tracking**: Reactive tracking of which fonts are loaded
 - **Error Handling**: Graceful handling of font loading failures
 
+### Rendering Paths
+- **Shared Generation Step**: All font styles are generated through `figlet.text(...)` in `src/components/AsciiArtGenerator.vue`
+- **Generic Text Path**: Most fonts are previewed as raw monospace text and exported through canvas sampling plus rectangle merging
+- **Dedicated ANSI Shadow Path**: `src/utils/asciiVectorRenderer.ts` detects ASCII output built from `█` plus `╔═╗║╚╝`, splits face and shadow layers, rasterizes them separately, and emits shape-only SVG
+- **Preview/Export Consistency**: ANSI Shadow-style output uses the same dedicated vector pipeline for both preview and export to reduce visual drift
+
 ### Advanced SVG Export Logic
-Located in `AsciiArtGenerator.vue:275-475`, featuring sophisticated text-to-shape conversion:
-- **High-Resolution Canvas Rendering**: Uses 2x pixel ratio for accurate text measurement
-- **Pixel-to-Shape Conversion**: Converts rendered text to optimized SVG rectangles
-- **Rectangle Merging Algorithm**: Advanced algorithm to find and merge adjacent pixels into larger rectangles for optimal SVG file size
-- **Anti-aliasing Handling**: Proper threshold detection for anti-aliased text edges
-- **Dimension Calculation**: Automatic SVG sizing based on actual text dimensions
-- **Filename Sanitization**: Clean filenames based on input text and character width settings
+Located in `src/components/AsciiArtGenerator.vue` and `src/utils/asciiVectorRenderer.ts`:
+- **Generic Export Path**: Uses a high-resolution canvas plus rectangle merging for the standard monospace text pipeline
+- **ANSI Shadow Vector Export**: Uses a dedicated layered renderer with face/shadow separation and shape-only SVG output
+- **Rectangle Merging Algorithm**: Finds and merges adjacent filled pixels into larger rectangles for smaller SVG output
+- **Dimension Calculation**: Sizes the exported SVG from measured content bounds
+- **Filename Sanitization**: Builds a clean filename from the input text and character width settings
 
 ### Character Width Options
 The application provides fine-grained control over ASCII art appearance:
@@ -85,6 +90,7 @@ The application provides fine-grained control over ASCII art appearance:
 ## File Structure Notes
 
 - **Main Logic**: All core functionality consolidated in `AsciiArtGenerator.vue`
+- **ANSI Shadow Vector Rendering**: Dedicated logic in `src/utils/asciiVectorRenderer.ts`
 - **Font Management**: Dedicated `src/utils/fontLoader.ts` utility for font operations
 - **Type Definitions**: TypeScript definitions in `src/types/figlet-fonts.d.ts`
 - **Routing**: Minimal router configuration with home and about routes
@@ -96,7 +102,8 @@ The application provides fine-grained control over ASCII art appearance:
 - **Import Alias**: `@` alias points to `src/` directory
 - **Dynamic Font Loading**: Fonts are loaded on-demand using dynamic imports
 - **Reactive UI**: Font loading status is tracked reactively for UI updates  
-- **Canvas-based SVG Export**: Uses HTML5 Canvas for precise text-to-shape conversion
+- **Dual SVG Export Paths**: Generic fonts use the legacy text/canvas export path, while ANSI Shadow-style output uses the dedicated vector renderer
+- **Figma Compatibility**: The ANSI Shadow vector path emits shape-only SVG, avoiding downstream font substitution
 - **Error Handling**: Comprehensive error handling for font loading and ASCII generation
 - **Performance Optimization**: Only loads fonts when needed, optimized SVG output
 - **Vite Compatibility**: Font imports are statically defined for proper Vite bundling
